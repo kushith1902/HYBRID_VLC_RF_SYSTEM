@@ -133,7 +133,7 @@ class SystemConfig:
     rsma: RSMAConfig = field(default_factory=RSMAConfig)
     power: PowerConsumptionConfig = field(default_factory=PowerConsumptionConfig)
     
-    num_users: int = 4
+    num_users: int = 8                    # High density indoor scenario (default 8 users)
     default_alpha: float = 0.5            # RF vs VLC power allocation factor in [0, 1]
     min_user_rate_bps: float = 10.0e6     # 10 Mbps QoS minimum rate constraint per user
     random_seed: int = 42

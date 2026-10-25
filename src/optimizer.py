@@ -70,16 +70,53 @@ class OptimizationTeacher:
         candidate_modes.append(rule_mode)
         
         # 3. Targeted mode exploration:
-        # For each user, if blocked -> mode 0 (RF)
-        # If unblocked -> test mode 1 (VLC) and mode 2 (Hybrid)
         unblocked_indices = [k for k in range(K) if not is_blocked[k]]
+        
+        # Blockage-aware pure assignments:
+        if len(unblocked_indices) > 0:
+            # Mode: Unblocked on VLC (1), blocked on RF (0)
+            m_vlc_unblocked = np.zeros(K, dtype=int)
+            m_vlc_unblocked[unblocked_indices] = 1
+            candidate_modes.append(m_vlc_unblocked)
+            
+            # Mode: Unblocked on Hybrid (2), blocked on RF (0)
+            m_hyb_unblocked = np.zeros(K, dtype=int)
+            m_hyb_unblocked[unblocked_indices] = 2
+            candidate_modes.append(m_hyb_unblocked)
+            
         if len(unblocked_indices) <= 4:
-            # Enumerate modes for unblocked users
+            # Enumerate modes for small unblocked subsets
             for choices in product([0, 1, 2], repeat=len(unblocked_indices)):
                 m = np.zeros(K, dtype=int)
                 for idx, u_idx in enumerate(unblocked_indices):
                     m[u_idx] = choices[idx]
                 candidate_modes.append(m)
+        else:
+            # High User Density Scalable Search:
+            # Rank unblocked users by optical channel gain H_VLC
+            sorted_unblocked = sorted(unblocked_indices, key=lambda k: vlc_effective_h[k], reverse=True)
+            for cutoff in range(1, len(sorted_unblocked) + 1):
+                # Top cutoff to VLC, rest to RF
+                m_cut_vlc = np.zeros(K, dtype=int)
+                for u in sorted_unblocked[:cutoff]:
+                    m_cut_vlc[u] = 1
+                candidate_modes.append(m_cut_vlc)
+                
+                # Top cutoff to Hybrid, rest on RF
+                m_cut_hyb = np.zeros(K, dtype=int)
+                for u in sorted_unblocked[:cutoff]:
+                    m_cut_hyb[u] = 2
+                candidate_modes.append(m_cut_hyb)
+                
+                # Mixed: top on VLC, middle on Hybrid, rest on RF
+                if cutoff > 1:
+                    m_mixed = np.zeros(K, dtype=int)
+                    half = cutoff // 2
+                    for u in sorted_unblocked[:half]:
+                        m_mixed[u] = 1
+                    for u in sorted_unblocked[half:cutoff]:
+                        m_mixed[u] = 2
+                    candidate_modes.append(m_mixed)
                 
         # Remove duplicate mode arrays
         unique_modes = []

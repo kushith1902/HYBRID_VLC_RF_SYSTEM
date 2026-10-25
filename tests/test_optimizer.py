@@ -43,3 +43,21 @@ def test_optimizer_marks_infeasible_when_min_rate_unachievable():
     res = teacher.optimize(rf_gains, vlc_gains, is_blocked, min_rate_bps=1e11)
     assert res['is_feasible'] is False
     assert res['solution_type'] == "Best_Effort_Infeasible"
+
+
+def test_optimizer_high_user_density():
+    # Test high user density with K=12 users and mixed blockage
+    K = 12
+    config = SystemConfig(num_users=K)
+    teacher = OptimizationTeacher(config, alpha_grid_points=3, beta_grid_points=3)
+    
+    rf_gains = np.full(K, 2e-7)
+    vlc_gains = np.full(K, 1e-5)
+    # Block half the users
+    is_blocked = np.array([True if i % 2 == 0 else False for i in range(K)])
+    vlc_gains[is_blocked] = 0.0
+    
+    res = teacher.optimize(rf_gains, vlc_gains, is_blocked, min_rate_bps=1e6)
+    assert len(res['modes']) == K
+    assert res['energy_efficiency'] > 0.0
+    assert res['optimization_runtime_sec'] < 2.0 # Must be fast and scalable

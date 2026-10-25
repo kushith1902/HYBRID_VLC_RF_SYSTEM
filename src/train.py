@@ -14,23 +14,32 @@ from torch.utils.data import TensorDataset, DataLoader
 from src.model import JointLinkPowerNN
 
 
-FEATURE_COLS = [
-    'u0_x', 'u0_y', 'u0_z', 'u0_rf_dist', 'u0_rf_gain_db', 'u0_rf_snr_db', 'u0_vlc_gain_db', 'u0_vlc_snr_db', 'u0_is_blocked',
-    'u1_x', 'u1_y', 'u1_z', 'u1_rf_dist', 'u1_rf_gain_db', 'u1_rf_snr_db', 'u1_vlc_gain_db', 'u1_vlc_snr_db', 'u1_is_blocked',
-    'u2_x', 'u2_y', 'u2_z', 'u2_rf_dist', 'u2_rf_gain_db', 'u2_rf_snr_db', 'u2_vlc_gain_db', 'u2_vlc_snr_db', 'u2_is_blocked',
-    'u3_x', 'u3_y', 'u3_z', 'u3_rf_dist', 'u3_rf_gain_db', 'u3_rf_snr_db', 'u3_vlc_gain_db', 'u3_vlc_snr_db', 'u3_is_blocked'
-]
+def get_feature_cols(num_users: int = 4) -> List[str]:
+    """Dynamically generate feature column names for any number of users."""
+    cols = []
+    for k in range(num_users):
+        cols.extend([
+            f'u{k}_x', f'u{k}_y', f'u{k}_z',
+            f'u{k}_rf_dist', f'u{k}_rf_gain_db', f'u{k}_rf_snr_db',
+            f'u{k}_vlc_gain_db', f'u{k}_vlc_snr_db', f'u{k}_is_blocked'
+        ])
+    return cols
+
+
+FEATURE_COLS = get_feature_cols(4)
 
 
 def extract_features_and_targets(df: pd.DataFrame, num_users: int = 4) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Extract feature matrices and supervised targets from scenario DataFrame.
+    Extract feature matrices and supervised targets from scenario DataFrame for num_users.
     """
-    # Feature matrix X: (N, in_features)
-    X = df[FEATURE_COLS].to_numpy(dtype=np.float32)
+    cols = get_feature_cols(num_users)
+    # Filter only columns present in df
+    valid_cols = [c for c in cols if c in df.columns]
+    X = df[valid_cols].to_numpy(dtype=np.float32)
     
     # Target link modes: (N, num_users)
-    mode_cols = [f'target_mode_u{k}' for k in range(num_users)]
+    mode_cols = [f'target_mode_u{k}' for k in range(num_users) if f'target_mode_u{k}' in df.columns]
     y_modes = df[mode_cols].to_numpy(dtype=np.int64)
     
     # Target alpha: (N, 1)
@@ -46,15 +55,15 @@ class ModelTrainer:
     """
     Supervised Training Manager for the Multi-Output Neural Network.
     """
-    def __init__(self, in_features: int = 36, num_users: int = 4,
+    def __init__(self, in_features: Optional[int] = None, num_users: int = 4,
                  lambda_link: float = 1.0, lambda_alpha: float = 2.0, lambda_beta: float = 2.0):
-        self.in_features = in_features
         self.num_users = num_users
+        self.in_features = in_features if in_features is not None else (num_users * 9)
         self.lambda_link = lambda_link
         self.lambda_alpha = lambda_alpha
         self.lambda_beta = lambda_beta
         
-        self.model = JointLinkPowerNN(in_features=in_features, num_users=num_users)
+        self.model = JointLinkPowerNN(in_features=self.in_features, num_users=self.num_users)
         self.scaler_mean: Optional[np.ndarray] = None
         self.scaler_std: Optional[np.ndarray] = None
 

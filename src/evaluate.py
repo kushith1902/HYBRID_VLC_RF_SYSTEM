@@ -13,7 +13,7 @@ import torch
 from config.default_config import SystemConfig
 from src.model import JointLinkPowerNN
 from src.objective import SystemEvaluator
-from src.train import FEATURE_COLS, extract_features_and_targets
+from src.train import get_feature_cols, FEATURE_COLS, extract_features_and_targets
 
 
 class ModelEvaluator:
@@ -62,10 +62,11 @@ class ModelEvaluator:
         if not self.is_trained:
             raise RuntimeError("Model checkpoint is not loaded. Train the model first.")
             
-        K = self.config.num_users
+        K = self.model.num_users if self.model is not None else self.config.num_users
         
         # 1. Extract raw features
-        raw_x = np.array([row[col] for col in FEATURE_COLS], dtype=np.float32)
+        cols = get_feature_cols(K)
+        raw_x = np.array([row[col] for col in cols], dtype=np.float32)
         norm_x = (raw_x - self.scaler_mean) / self.scaler_std
         
         # Blockage states

@@ -1,7 +1,7 @@
 # RESEARCH TECHNICAL REPORT
 
 **Project Title:** AI-Driven Joint Link Selection and Adaptive Power Allocation for Energy-Efficient RSMA in 6G Hybrid RF/VLC Indoor Networks  
-**Generated Date:** 2026-10-20 21:13:47  
+**Generated Date:** 2026-10-25 12:06:23  
 **Platform:** Python 3.14 / PyTorch / Streamlit / Plotly  
 **Author / Lab:** Capstone Wireless Communications Research Initiative  
 
@@ -51,6 +51,20 @@ $$P_{total,elec} = \frac{P_{RF,tx}}{\eta_{PA}} + P_{RFIC} + \frac{P_{VLC,opt}}{\
 ---
 
 ## 3. Experimental Evaluation & Key Findings
+
+### 3.1 AI Model Performance on Unseen Scenarios
+- **Evaluated Test Scenarios:** 24
+- **Link Mode Decision Agreement with Teacher:** 86.98%
+- **Alpha Mean Absolute Error:** 0.0286
+- **Beta Mean Absolute Error:** 0.0066
+- **Mean AI Delivered Sum Rate:** 2554.33 Mbps
+- **Mean AI Energy Efficiency:** 179038223.67 bits/Joule
+- **Teacher Benchmark Energy Efficiency:** 212918792.20 bits/Joule
+- **Energy Efficiency Optimality Gap:** 15.91%
+- **AI Inference Latency (Mean):** 0.396 ms
+- **Teacher Optimizer Execution Runtime:** 124.87 ms
+- **Computational Speedup Factor:** **315.6x faster**
+- **Physical Feasibility Rate:** 100.0%
 
 ## 4. Scientific Conclusions
 1. **Blockage Resilience via Hybrid Dual-Connectivity:** While pure VLC provides massive optical bandwidth under direct LOS, human blockage induces total link failure. The proposed joint controller dynamically offloads blocked users to 140 GHz sub-THz RF without human intervention.

@@ -20,13 +20,13 @@ def main():
     print("6G Hybrid RF/VLC RSMA - Automated Pipeline Runner")
     print("=" * 70)
     
-    config = SystemConfig(num_users=4, random_seed=42)
+    config = SystemConfig(num_users=8, random_seed=42)
     os.makedirs("data", exist_ok=True)
     os.makedirs("models", exist_ok=True)
     os.makedirs("results", exist_ok=True)
     
     # 1. Dataset Generation
-    print("\n[Step 1/4] Generating physics-based simulation scenarios...")
+    print("\n[Step 1/4] Generating physics-based high-density simulation scenarios (K=8 users)...")
     gen = DatasetGenerator(config, seed=42)
     num_scenarios = 120
     df = gen.generate_dataset(num_scenarios=num_scenarios, randomize_obstacles=True)
@@ -41,7 +41,7 @@ def main():
     
     # 2. PyTorch Neural Network Training
     print("\n[Step 2/4] Training Multi-Output Neural Network on Optimizer Labels...")
-    trainer = ModelTrainer(in_features=36, num_users=4)
+    trainer = ModelTrainer(in_features=8 * 9, num_users=8)
     res = trainer.fit(train_df=train_df, val_df=val_df, epochs=40, batch_size=16, lr=1e-3)
     print(f"-> Training complete! Best Val Loss: {res['best_val_loss']:.4f}")
     print(f"-> Checkpoint saved to: {res['checkpoint_path']}")

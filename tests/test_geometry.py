@@ -52,3 +52,24 @@ def test_obstacle_intersection_clear():
     led_pos = np.array([1.0, 1.0, 3.0])
     user_pos = np.array([1.0, 1.0, 0.0])
     assert not check_segment_aabb_intersection(led_pos, user_pos, obs)
+
+
+def test_variable_obstacles_and_rf_los():
+    from src.environment import IndoorEnvironment
+    from config.default_config import SystemConfig
+    
+    cfg = SystemConfig(num_users=8)
+    env = IndoorEnvironment(cfg, seed=42)
+    
+    # Test setting variable obstacle counts
+    env.set_variable_obstacles(count=4)
+    assert len(env.obstacles) == 4
+    
+    env.set_variable_obstacles(count=1)
+    assert len(env.obstacles) == 1
+    
+    # Test RF LOS computation
+    env.set_variable_obstacles(count=6)
+    rf_los = env.compute_rf_los_status()
+    assert len(rf_los) == 8
+    assert isinstance(rf_los[0], (bool, np.bool_))

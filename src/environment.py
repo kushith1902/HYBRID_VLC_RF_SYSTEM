@@ -2,6 +2,7 @@
 Indoor Environment Management and Mobility Simulation.
 Manages spatial configuration of 140 GHz RF AP, 4 VLC LEDs, mobile users,
 3D obstacles, and line-of-sight blockage matrices over time.
+Supports high user densities and variable physical obstacle counts.
 """
 
 from typing import List, Tuple, Optional, Dict
@@ -36,14 +37,15 @@ class IndoorEnvironment:
         # Obstacles list
         self.obstacles: List[Obstacle3D] = []
         
-        # Initialize default layout
+        # Initialize default layout with variable obstacles
         self.reset_users()
-        self.init_default_obstacles()
+        self.set_variable_obstacles(count=3)
 
     def reset_users(self, user_positions: Optional[np.ndarray] = None):
         """
         Initialize or reset user positions inside the room at desk height (0.85m).
         Ensures a minimum margin of 0.3m from walls.
+        Supports high user density scenarios.
         """
         margin = 0.3
         if user_positions is not None:
@@ -64,17 +66,56 @@ class IndoorEnvironment:
         self.user_velocities = np.column_stack([vx, vy, vz])
 
     def init_default_obstacles(self):
+        """Default setup with 3 realistic obstacles."""
+        self.set_variable_obstacles(count=3)
+
+    def set_variable_obstacles(self, count: int = 3):
         """
-        Configure default physical obstacles (e.g. human blocker / partition).
-        Default: 1 human blocker obstacle standing in room (0.4m x 0.4m x 1.7m tall).
+        Configure a variable number of realistic indoor obstacles (1 to 6).
+        Includes architectural columns (ceiling-height), office cubicle partitions,
+        and human blockers to guarantee realistic line-of-sight blockage for some users.
         """
-        self.obstacles = [
+        catalog = [
+            # 1. Architectural Concrete Column (Floor to ceiling - blocks both VLC and shadows RF)
             Obstacle3D.from_center_and_size(
-                center=(2.0, 2.0, 0.85),
-                size=(0.5, 0.5, 1.7),
-                name="Human Blockage A"
+                center=(2.0, 2.5, 1.5),
+                size=(0.55, 0.55, 3.0),
+                name="Architectural Column"
+            ),
+            # 2. Office Partition Wall (Room divider)
+            Obstacle3D.from_center_and_size(
+                center=(3.4, 2.6, 1.0),
+                size=(0.2, 1.8, 2.0),
+                name="Office Partition Wall"
+            ),
+            # 3. Human Blocker 1 (Standing person)
+            Obstacle3D.from_center_and_size(
+                center=(1.5, 1.8, 0.85),
+                size=(0.5, 0.5, 1.75),
+                name="Human Blocker A"
+            ),
+            # 4. Human Blocker 2 (Walking person)
+            Obstacle3D.from_center_and_size(
+                center=(3.2, 3.8, 0.85),
+                size=(0.5, 0.5, 1.75),
+                name="Human Blocker B"
+            ),
+            # 5. Tall Equipment Rack / Cabinet
+            Obstacle3D.from_center_and_size(
+                center=(1.2, 3.4, 1.1),
+                size=(0.7, 0.7, 2.2),
+                name="Server Equipment Rack"
+            ),
+            # 6. Presentation Board / Display Panel
+            Obstacle3D.from_center_and_size(
+                center=(2.8, 1.3, 1.0),
+                size=(1.5, 0.2, 2.0),
+                name="Display Screen Wall"
             )
         ]
+        
+        valid_count = max(0, min(count, len(catalog)))
+        self.obstacles = catalog[:valid_count]
 
     def add_obstacle(self, obstacle: Obstacle3D):
         """Add a custom 3D obstacle."""
@@ -118,6 +159,20 @@ class IndoorEnvironment:
     def get_rf_distances(self) -> np.ndarray:
         """Calculate 3D distances from RF AP to each user (K,)."""
         return np.linalg.norm(self.user_positions - self.rf_ap_pos, axis=1)
+
+    def compute_rf_los_status(self) -> np.ndarray:
+        """
+        Determine whether the 140 GHz RF path from AP to User k has direct LOS (True)
+        or is shadowed/blocked by an obstacle (False = NLOS).
+        """
+        is_los = np.ones(self.num_users, dtype=bool)
+        for k in range(self.num_users):
+            user_pos = self.user_positions[k]
+            for obs in self.obstacles:
+                if check_segment_aabb_intersection(self.rf_ap_pos, user_pos, obs):
+                    is_los[k] = False
+                    break
+        return is_los
 
     def get_vlc_distances(self) -> np.ndarray:
         """Calculate 3D distances from each VLC LED to each user (num_leds, K)."""

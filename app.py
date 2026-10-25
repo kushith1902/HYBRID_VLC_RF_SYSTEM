@@ -190,28 +190,33 @@ elif menu == "2. Network Configuration":
     st.title("Network Parameters & Geometry Configuration")
     
     with st.form("config_form"):
-        st.subheader("1. Indoor Room Dimensions")
+        st.subheader("1. Indoor Room Dimensions & User Density")
         c1, c2, c3, c4 = st.columns(4)
-        length = c1.number_input("Length (m)", min_value=3.0, max_value=15.0, value=5.0, step=0.5)
-        width = c2.number_input("Width (m)", min_value=3.0, max_value=15.0, value=5.0, step=0.5)
-        height = c3.number_input("Height (m)", min_value=2.5, max_value=6.0, value=3.0, step=0.5)
-        num_users = c4.number_input("Number of Users (K)", min_value=2, max_value=8, value=4, step=1)
+        length = c1.number_input("Length (m)", min_value=3.0, max_value=15.0, value=float(st.session_state.config.room.length), step=0.5)
+        width = c2.number_input("Width (m)", min_value=3.0, max_value=15.0, value=float(st.session_state.config.room.width), step=0.5)
+        height = c3.number_input("Height (m)", min_value=2.5, max_value=6.0, value=float(st.session_state.config.room.height), step=0.5)
+        num_users = c4.number_input("Number of Users (K) [High Density]", min_value=2, max_value=24, value=int(st.session_state.config.num_users), step=1)
         
-        st.subheader("2. 140 GHz Sub-THz RF Parameters")
+        st.subheader("2. 3D Obstacles & Physical Blockage")
+        o1, o2 = st.columns(2)
+        obs_count = o1.slider("Active 3D Obstacles (Pillars, Partitions, Humans)", min_value=0, max_value=6, value=min(6, len(st.session_state.env.obstacles)), step=1)
+        o2.info(f"Target Density: {num_users / (length * width):.2f} users/m² | Obstacle Shadows: {obs_count} physical 3D blockers")
+
+        st.subheader("3. 140 GHz Sub-THz RF Parameters")
         r1, r2, r3, r4 = st.columns(4)
         rf_freq_ghz = r1.number_input("RF Carrier (GHz)", min_value=100.0, max_value=300.0, value=140.0)
         rf_bw_mhz = r2.number_input("RF Bandwidth (MHz)", min_value=100.0, max_value=2000.0, value=1000.0)
         rf_p_max_dbm = r3.number_input("Max RF Power (dBm)", min_value=10.0, max_value=30.0, value=23.0)
         rf_tx_gain = r4.number_input("Tx Antenna Gain (dBi)", min_value=5.0, max_value=25.0, value=15.0)
         
-        st.subheader("3. Optical VLC Parameters")
+        st.subheader("4. Optical VLC Parameters")
         v1, v2, v3, v4 = st.columns(4)
         vlc_p_opt = v1.number_input("Optical Power / LED (W)", min_value=1.0, max_value=20.0, value=5.0)
         vlc_semi_angle = v2.number_input("Semi-Angle (deg)", min_value=30.0, max_value=85.0, value=60.0)
         vlc_fov = v3.number_input("Receiver FOV (deg)", min_value=30.0, max_value=85.0, value=60.0)
         vlc_bw_mhz = v4.number_input("VLC Bandwidth (MHz)", min_value=5.0, max_value=50.0, value=20.0)
         
-        st.subheader("4. Simulation Control")
+        st.subheader("5. Simulation Control")
         s1, s2 = st.columns(2)
         min_rate_mbps = s1.number_input("QoS Minimum Rate Constraint (Mbps)", min_value=1.0, max_value=50.0, value=10.0)
         sim_seed = s2.number_input("Random Seed", min_value=1, max_value=99999, value=42)
@@ -234,15 +239,16 @@ elif menu == "2. Network Configuration":
             st.session_state.config.random_seed = int(sim_seed)
             
             st.session_state.env = IndoorEnvironment(st.session_state.config, seed=int(sim_seed))
-            st.success("Configuration successfully updated and environment re-initialized!")
+            st.session_state.env.set_variable_obstacles(int(obs_count))
+            st.success("Configuration successfully updated with High User Density and Variable Blockages!")
 
 
 # ---------------- PAGE 3: 3D VISUALIZATION ----------------
 elif menu == "3. Indoor 3D Visualization":
     st.title("Interactive 3D Indoor Network Topology")
-    st.markdown("Visualizes the 140 GHz AP (cyan diamond), 4 VLC LEDs (yellow circles), 3D obstacles (red outlines), mobile users, and ray-traced optical blockage paths.")
+    st.markdown("Visualizes the 140 GHz AP (cyan diamond), 4 VLC LEDs (yellow circles), 3D obstacles (columns, partitions, humans), mobile users, and ray-traced optical blockage paths.")
     
-    col_ctrl1, col_ctrl2, col_ctrl3 = st.columns(3)
+    col_ctrl1, col_ctrl2, col_ctrl3 = st.columns([1, 1, 2])
     with col_ctrl1:
         if st.button("Step User Mobility (dt = 0.5s)"):
             st.session_state.env.step_mobility(dt=0.5)
@@ -252,32 +258,58 @@ elif menu == "3. Indoor 3D Visualization":
             st.session_state.env.reset_users()
             st.rerun()
     with col_ctrl3:
-        if st.button("Toggle Add/Remove Obstacle"):
-            if len(st.session_state.env.obstacles) > 0:
-                st.session_state.env.clear_obstacles()
-            else:
-                st.session_state.env.init_default_obstacles()
+        new_obs_cnt = st.slider("Variable Obstacle Count (Pillars, Walls, People)", 0, 6, len(st.session_state.env.obstacles))
+        if new_obs_cnt != len(st.session_state.env.obstacles):
+            st.session_state.env.set_variable_obstacles(new_obs_cnt)
             st.rerun()
             
     fig_3d = create_3d_indoor_room_plot(st.session_state.env)
     st.plotly_chart(fig_3d, use_container_width=True)
     
-    # Table of User Positions and Blockage
-    st.subheader("Current User Spatial States")
+    # Blockage & Density Diagnostics
     blk_mat = st.session_state.env.compute_optical_blockage_matrix()
+    rf_los_status = st.session_state.env.compute_rf_los_status()
     rf_dists = st.session_state.env.get_rf_distances()
+    K = st.session_state.env.num_users
     
+    # Calculate blockage counts
+    num_fully_blocked = sum(np.all(blk_mat[:, k] == 1) for k in range(K))
+    num_partially_blocked = sum((np.any(blk_mat[:, k] == 1) and not np.all(blk_mat[:, k] == 1)) for k in range(K))
+    num_clear_los = K - num_fully_blocked - num_partially_blocked
+    num_rf_nlos = sum(not rf_los_status[k] for k in range(K))
+    
+    b1, b2, b3, b4 = st.columns(4)
+    with b1:
+        st.metric("User Density", f"{K / 25.0:.2f} users/m²", f"{K} users in 25 m²")
+    with b2:
+        st.metric("Clear Optical LOS", f"{num_clear_los} Users", f"{num_clear_los/K*100:.0f}%")
+    with b3:
+        st.metric("Optical Blockage", f"{num_partially_blocked + num_fully_blocked} Users", f"{num_fully_blocked} fully blocked")
+    with b4:
+        st.metric("RF NLOS Shadowing", f"{num_rf_nlos} Users", "Pillar/Wall Shadowed" if num_rf_nlos > 0 else "All RF LOS")
+    
+    # Table of User Positions and Blockage
+    st.subheader("Current User Spatial & Blockage States")
     user_rows = []
-    for k in range(st.session_state.env.num_users):
+    for k in range(K):
         u_pos = st.session_state.env.user_positions[k]
         blocked_leds = [f"LED {m}" for m in range(st.session_state.env.num_leds) if blk_mat[m, k]]
+        if len(blocked_leds) == st.session_state.env.num_leds:
+            vlc_status_text = "🚫 FULLY BLOCKED (VLC Outage)"
+        elif len(blocked_leds) > 0:
+            vlc_status_text = f"⚠️ Blocked: {', '.join(blocked_leds)}"
+        else:
+            vlc_status_text = "✅ Clear LOS (All 4 LEDs)"
+            
+        rf_status_text = "✅ LOS (Clear)" if rf_los_status[k] else "⚠️ NLOS (Shadowed by Column/Partition)"
+        
         user_rows.append({
             'User': f"User {k}",
             'X (m)': f"{u_pos[0]:.2f}",
             'Y (m)': f"{u_pos[1]:.2f}",
-            'Z (m)': f"{u_pos[2]:.2f}",
             'Distance to RF AP (m)': f"{rf_dists[k]:.2f}",
-            'Blocked Optical Links': ", ".join(blocked_leds) if blocked_leds else "None (Clear LOS)"
+            '140 GHz RF State': rf_status_text,
+            'Optical VLC Link Status': vlc_status_text
         })
     st.dataframe(pd.DataFrame(user_rows), use_container_width=True)
 
@@ -285,11 +317,13 @@ elif menu == "3. Indoor 3D Visualization":
 # ---------------- PAGE 4: RF CHANNEL ANALYSIS ----------------
 elif menu == "4. RF Channel Analysis":
     st.title("140 GHz Sub-THz RF Propagation Analysis")
+    st.markdown("Evaluates 140 GHz Close-In (CI) path loss, directional antenna gains, thermal noise, and LOS/NLOS state transitions caused by physical obstacles.")
     
     rf_model = RFChannelModel(st.session_state.config.rf, seed=st.session_state.config.random_seed)
     dists = st.session_state.env.get_rf_distances()
-    pl_db = rf_model.calculate_path_loss_db(dists, enable_shadowing=False)
-    gains = rf_model.calculate_channel_gains(dists, enable_fading=True)
+    rf_los = st.session_state.env.compute_rf_los_status()
+    pl_db = rf_model.calculate_path_loss_db(dists, is_los=rf_los, enable_shadowing=True)
+    gains = rf_model.calculate_channel_gains(dists, is_los=rf_los, enable_fading=True)
     gains_db = 10.0 * np.log10(gains)
     snr_db = rf_model.calculate_snr_db(st.session_state.config.rf.tx_power_max_w, gains)
     
@@ -311,6 +345,7 @@ elif menu == "4. RF Channel Analysis":
         rf_table.append({
             'User': f"User {k}",
             'Distance (m)': f"{dists[k]:.2f}",
+            'RF Link State': "LOS (n=1.9)" if rf_los[k] else "NLOS Shadowed (n=2.8)",
             'CI Path Loss (dB)': f"{pl_db[k]:.2f}",
             'Channel Power Gain (dB)': f"{gains_db[k]:.2f}",
             'Received SNR (dB)': f"{snr_db[k]:.2f}"
@@ -352,6 +387,19 @@ elif menu == "5. VLC Channel Analysis":
     )
     fig_heat.update_layout(paper_bgcolor='#0b1120', plot_bgcolor='#0b1120', font=dict(color='#e2e8f0'))
     st.plotly_chart(fig_heat, use_container_width=True)
+    
+    # User VLC table
+    st.subheader("Per-User Optical Channel & Blockage Details")
+    vlc_table = []
+    for k in range(st.session_state.env.num_users):
+        vlc_table.append({
+            'User': f"User {k}",
+            'Serving LED': f"LED {serving_leds[k]}",
+            'Effective DC Gain': f"{eff_h[k]:.3e}",
+            'Electrical SNR (dB)': f"{snr_elec_db[k]:.2f}",
+            'Optical State': "🚫 Blocked (0 bps)" if eff_h[k] < 1e-12 else "✅ Clear Optical Path"
+        })
+    st.dataframe(pd.DataFrame(vlc_table), use_container_width=True)
 
 
 # ---------------- PAGE 6: RSMA ANALYSIS ----------------
@@ -497,7 +545,8 @@ elif menu == "8. AI Training":
                 st.stop()
                 
         with st.spinner("Training multi-output neural network..."):
-            trainer = ModelTrainer(in_features=36, num_users=st.session_state.config.num_users)
+            k_users = st.session_state.config.num_users
+            trainer = ModelTrainer(in_features=k_users * 9, num_users=k_users)
             prog = st.progress(0.0)
             status_text = st.empty()
             
@@ -574,7 +623,8 @@ elif menu == "9. AI Allocation":
                     
                 # Per-user comparison table
                 comp_rows = []
-                for k in range(st.session_state.config.num_users):
+                n_display = min(len(eval_res['ai_modes']), st.session_state.config.num_users)
+                for k in range(n_display):
                     comp_rows.append({
                         'User': f"User {k}",
                         'AI Assigned Link': LINK_MODES[eval_res['ai_modes'][k]],

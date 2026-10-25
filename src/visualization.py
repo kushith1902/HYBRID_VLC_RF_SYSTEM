@@ -175,10 +175,10 @@ def plot_rf_channel_curves(rf_distances: np.ndarray, rf_path_losses: np.ndarray,
     ))
     
     fig.update_layout(
-        title='140 GHz Sub-THz Path Loss & Gain vs Distance',
-        xaxis=dict(title='Distance (m)', gridcolor='#1e293b'),
-        yaxis=dict(title='Path Loss (dB)', gridcolor='#1e293b', titlefont=dict(color='#ef4444')),
-        yaxis2=dict(title='Channel Gain (dB)', overlaying='y', side='right', titlefont=dict(color='#00f2fe')),
+        title=dict(text='140 GHz Sub-THz Path Loss & Gain vs Distance', font=dict(color='#e2e8f0')),
+        xaxis=dict(title=dict(text='Distance (m)', font=dict(color='#e2e8f0')), gridcolor='#1e293b'),
+        yaxis=dict(title=dict(text='Path Loss (dB)', font=dict(color='#ef4444')), gridcolor='#1e293b'),
+        yaxis2=dict(title=dict(text='Channel Gain (dB)', font=dict(color='#00f2fe')), overlaying='y', side='right'),
         paper_bgcolor='#0b1120', plot_bgcolor='#0b1120',
         font=dict(color='#e2e8f0')
     )
